@@ -7,8 +7,8 @@
 | Student name | Carl Graf von Moltke |
 | ESADE email | carlleonard.grafvonmoltke@alumni.esade.edu |
 | GitHub repo URL | https://github.com/CarlGvM/lobechat-aws (private; user `joseporiolrius` invited as collaborator) |
-| Latest commit SHA | `45a1bf34e6c1ca34f33f5bf0c7d094aecc806a13` |
-| Final tag | `final-v1.0.0` |
+| Latest commit SHA | `884b974f3ff1672357cfbad7cd660b9559c2c54c` |
+| Final tag | `final-v0.7.0` |
 
 ## 2. Public URL
 
