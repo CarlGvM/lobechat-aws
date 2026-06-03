@@ -1,0 +1,92 @@
+name: CI — Static Analysis (build-free)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history needed for gitleaks and cz check
+
+      # ── Compose interpolation fix ──────────────────────────────────
+      # Copy .env.example → .env so docker compose config can resolve
+      # ${VAR} placeholders. This is safe: .gitignore already excludes
+      # .env, so no real secrets are ever committed.
+      - name: Prepare dummy .env for Compose interpolation
+        run: cp .env.example .env
+
+      # ── Hadolint: Dockerfile linting ───────────────────────────────
+      - name: Hadolint — sandbox.Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: dockerfiles/sandbox.Dockerfile
+        continue-on-error: true  # warn-only: real findings expected (unpinned installs)
+
+      - name: Hadolint — mcphub.Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: dockerfiles/mcphub.Dockerfile
+        continue-on-error: true  # warn-only: flags FROM :latest and USER root
+
+      # ── Compose config validation (schema + interpolation only, NEVER up/build) ──
+      - name: Docker Compose config — validate schema
+        run: docker compose -f docker-compose.yml config -q
+
+      # ── YAML linting ───────────────────────────────────────────────
+      - name: Install yamllint
+        run: pip install --break-system-packages yamllint
+
+      - name: yamllint
+        run: yamllint docker-compose.yml .github/workflows/ci.yml
+        continue-on-error: true  # warn-only
+
+      # ── actionlint ─────────────────────────────────────────────────
+      - name: Install and run actionlint
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint
+        continue-on-error: true
+
+      # ── Gitleaks: secret scan ──────────────────────────────────────
+      - name: Gitleaks — scan for secrets
+        uses: gitleaks/gitleaks-action@v2.3.7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true  # warn-only
+
+      # ── Trivy: vulnerability + misconfiguration ────────────────────
+      - name: Trivy — filesystem vulnerability scan (fs)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+        continue-on-error: true
+
+      - name: Trivy — config misconfiguration scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: .
+        continue-on-error: true
+
+      # ── Conventional Commits (mirrors .githooks/commit-msg local gate) ──
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+
+      # Bounded to latest commit only — an unbounded check would fail on
+      # pre-existing non-conventional commits in the repo history.
+      - name: Conventional Commits check (cz)
+        run: uv run cz check -m "$(git log -1 --pretty=%B)"
+
+      # ── Deliberate exclusions ──────────────────────────────────────
+      # tests/ are NOT invoked. They are live-stack integration tests
+      # that import openai and httpx and hit running endpoints (e.g.
+      # vLLM /health). They require the full 11-service stack which
+      # needs an NVIDIA GPU and a 300s start period — impossible on a
+      # standard GitHub runner. No docker build, docker compose up/run,
+      # or pytest appears anywhere in this workflow.
