@@ -61,14 +61,14 @@ jobs:
 
       # ── Trivy: vulnerability + misconfiguration ────────────────────
       - name: Trivy — filesystem vulnerability scan (fs)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.24.0
         with:
           scan-type: fs
           scan-ref: .
         continue-on-error: true
 
       - name: Trivy — config misconfiguration scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.24.0
         with:
           scan-type: config
           scan-ref: .
